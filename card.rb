@@ -19,5 +19,4 @@ class Card
       @rank.to_i
     end
   end
-
 end
