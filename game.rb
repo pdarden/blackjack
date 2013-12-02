@@ -3,14 +3,16 @@ require_relative 'player'
 require_relative 'card'
 require 'pry'
 
-class Game
+class BlackjackGame
   def initialize
-    @player = Player.new("Player")
-    @dealer = Player.new("Dealer")
+    @player = Player.new('Player', 100)
+    @dealer = Player.new('Dealer')
     @deck = Deck.new
+    @continue_game = true
   end
 
   def deal_hands
+    player_bet(@player)
     2.times do
       player_hand << @deck.next_card
     end
@@ -23,8 +25,40 @@ class Game
     puts "Dealer was dealt: #{dealer_hand.last.face} and a mystery card"
 
     if @player.score == 21
-      puts "Blackjack! You win!"
-      abort
+      @player.record_result('wins')
+      puts 'Blackjack! You win!'
+      @player.win_money_blackjack
+      ask_to_play_again
+    end
+  end
+
+  def player_bet(player)
+    if @player.money <= 0
+      puts 'Sorry, you are out of money.'
+      display_game_info
+      puts 'Would you like to borrow some money? (Y/N)'
+      borrow = gets.chomp.downcase
+      if borrow == 'y'
+        puts "#{player.name}, you have $#{player.money}. How much would you like to borrow?"
+        puts '(Casino Rules: Your bet must be in full dollar amounts. Blackjack pays 3:2)'
+        print '$'
+        input = gets.chomp.to_i
+        player.bet_money(input)
+      else 
+        puts "Wise choice, young grasshopper. Goodbye!"
+        exit
+      end
+    else
+      puts "#{player.name}, you have $#{player.money}. How much would you like to bet?"
+      puts '(Casino Rules: Your bet must be in full dollar amounts. Blackjack pays 3:2)'
+      print '$'
+      input = gets.chomp.to_i
+      if input <= player.money
+        player.bet_money(input)
+      else
+        puts "You don't have enough money for that bet!"
+        player_bet(player)
+      end
     end
   end
 
@@ -37,20 +71,20 @@ class Game
   end
 
   def display_hand(hand)
-    print "The player was dealt: "
+    print "#{@player.name} was dealt: "
     hand.each do |card|
       print "#{card.face} "
     end
-    print "\n"
+    puts ""
   end
 
   def player_turn
-    print "Hit or stand (H/S):"
+    print 'Hit or stand (H/S):'
     choice = gets.chomp.downcase
     if choice == 'h'
       new_card = @deck.next_card
       player_hand << new_card
-      @player.status
+      status(@player)
       player_turn
     else
       puts "The dealer's hand is #{dealer_hand[0].face} and #{dealer_hand[1].face}"
@@ -61,29 +95,90 @@ class Game
 
   def dealer_turn
     if @dealer.score >= 17
-      puts "The dealer stands."
+      puts 'The dealer stands.'
       game_result
     else
       dealer_hand << @deck.next_card
-      @dealer.status
+      status(@dealer)
       dealer_turn
     end
   end
 
   def game_result
-    puts "================="
+    puts '================='
     puts "The player's final score is #{@player.score}."
     puts "The dealer's final score is #{@dealer.score}."
     if @player.score > @dealer.score
-      puts "You win!"
+      puts "You win $#{@player.bet}!"
+      @player.record_result('wins')
+      @player.win_money
     elsif @player.score == @dealer.score
       puts "It's a push. No winner."
+      @player.record_result('ties')
+      @player.push_money
     else
-      puts "You lose!"
+      puts "You lose $#{@player.bet}"
+      @player.record_result('losses')
     end
+    ask_to_play_again
+  end
+
+  def ask_to_play_again
+    puts ""
+    display_game_info
+    print 'Would you like to continue playing (Y/N):'
+    input = gets.chomp.downcase
+    if input == 'y'
+      play
+    else
+      puts 'Thank you for playing!'
+      display_game_info
+      puts 'Goodbye!'
+      exit
+    end
+  end
+
+  def display_game_info
+    @player.display_score
+  end
+
+  def final_results
+    puts 'Thank you for playing'
+    @player.record
+  end
+
+  def play
+    @deck = Deck.new
+    player_hand.clear
+    dealer_hand.clear
+    deal_hands
+    player_turn
+  end
+
+  def status(player)
+    player.last_card
+    player.score_status
+    if over_21?(player)
+      lose(player)
+    end
+  end
+
+  def over_21?(player)
+    player.score > 21
+  end
+
+  def lose(player)
+    puts "#{player.name} busts!"
+    if player.name == 'Dealer'
+      puts "You win $#{@player.bet}!"
+      @player.record_result('wins')
+      @player.win_money
+    else
+      @player.record_result('losses')
+    end
+    ask_to_play_again
   end
 end
 
-new_game = Game.new
-new_game.deal_hands
-new_game.player_turn
+new_game = BlackjackGame.new
+new_game.play
